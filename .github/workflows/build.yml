@@ -1,0 +1,58 @@
+name: Build TOTK Explorer v3
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Switch OVL
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkita64:latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Fetch dependencies
+        run: bash tools/setup_deps.sh
+
+      - name: Verify inputs
+        run: |
+          test -f libs/libtesla/include/tesla.hpp
+          test -f libs/libdmntcht.a
+          test -f include/switch/dmntcht.h
+          test -f include/explorer.hpp
+          test -f source/main.cpp
+          test -f source/memory.cpp
+          test -f source/map.cpp
+          test -f source/ui.cpp
+          echo "Dependencies and sources OK"
+
+      - name: Build
+        run: make clean && make -j2
+
+      - name: Prepare SD package
+        run: |
+          mkdir -p artifact/sd/switch/.overlays
+          mkdir -p artifact/sd/switch/totk_explorer
+          cp TOTK-Explorer-v3.ovl artifact/sd/switch/.overlays/
+          cp data/points.csv artifact/sd/switch/totk_explorer/
+          cp README_RU.md artifact/
+          echo "===== artifact ====="
+          find artifact -type f -print
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TOTK-Explorer-v3
+          path: artifact/
+          if-no-files-found: error
