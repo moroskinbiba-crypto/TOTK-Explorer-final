@@ -1,0 +1,4 @@
+# TOTK Explorer point database
+# Format: Type,Name,X,Y,Z
+# Add real object coordinates here or replace this file with a generated database.
+# The overlay will load this file from sdmc:/switch/totk_explorer/points.csv

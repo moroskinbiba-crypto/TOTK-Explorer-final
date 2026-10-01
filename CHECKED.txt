@@ -1,0 +1,12 @@
+Verification performed before delivery:
+- C++ syntax checked with g++ C++20 using Switch/Tesla API stubs for memory.cpp, map.cpp, ui.cpp.
+- setup_deps.sh passed bash -n.
+- GitHub Actions YAML parsed successfully.
+- Makefile checked to ensure points.csv is NOT treated as a compiled binary input.
+- Removed the previous mkdir dependency that caused the observed build error.
+- ui.cpp defines TESLA_INIT_IMPL exactly once and GUI classes are ordered before tsl::changeTo<> use.
+
+Not performed here:
+- Native devkitA64/libnx cross-compilation (the current environment does not contain devkitPro/devkitA64).
+- Runtime test on a physical Nintendo Switch.
+- Verification of the heuristic coordinate candidate against the user's live TOTK 1.4.3 process.
