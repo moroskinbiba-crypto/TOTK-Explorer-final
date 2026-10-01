@@ -1,8 +1,8 @@
-После успешной GitHub Actions сборки распакуйте artifact и скопируйте папку sd в корень microSD.
+После успешной GitHub Actions сборки распакуй artifact.
 
-Ожидаемая структура:
+Скопируй его содержимое на корень microSD:
 
-sd:/switch/.overlays/TOTK-Explorer-v3.ovl
-sd:/switch/totk_explorer/points.csv
+switch/.overlays/TOTK-Explorer-v3.ovl
+switch/totk_explorer/points.csv
 
-Запустите TOTK 1.4.3, откройте Tesla и выберите TOTK Explorer v3.
+Запусти TOTK 1.4.3, открой Tesla и выбери TOTK Explorer.

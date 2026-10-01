@@ -14,7 +14,7 @@ State g{};
 DmntCheatProcessMetadata g_meta{};
 bool g_dmntInitialized = false;
 
-constexpr u64 SCAN_CHUNK = 0x100000;       // 1 MiB per overlay update.
+constexpr u64 SCAN_CHUNK = 0x20000;        // 128 KiB per overlay update.
 constexpr std::size_t MAX_CANDIDATES = 20000;
 constexpr float MAX_ABS_COORD = 20000.0f;
 constexpr float MOVE_EPS = 0.25f;
@@ -99,7 +99,8 @@ void scanChunk() {
         return;
     }
 
-    std::vector<u8> buffer(bytes + 8);
+    static std::vector<u8> buffer;
+    buffer.resize(bytes);
     if (R_FAILED(dmntchtReadCheatProcessMemory(g.heapBase + g.cursor, buffer.data(), bytes))) {
         g.cursor += bytes;
         g.scanned += bytes;
@@ -221,6 +222,10 @@ Result initMemory() {
     }
 
     if (!findTargetProcess()) {
+        if (g.attachedByUs) {
+            dmntchtForceCloseCheatProcess();
+            g.attachedByUs = false;
+        }
         fail("TOTK 1.4.3 process not detected.");
         return 1;
     }

@@ -1,12 +1,14 @@
-Verification performed before delivery:
-- C++ syntax checked with g++ C++20 using Switch/Tesla API stubs for memory.cpp, map.cpp, ui.cpp.
-- setup_deps.sh passed bash -n.
-- GitHub Actions YAML parsed successfully.
-- Makefile checked to ensure points.csv is NOT treated as a compiled binary input.
-- Removed the previous mkdir dependency that caused the observed build error.
-- ui.cpp defines TESLA_INIT_IMPL exactly once and GUI classes are ordered before tsl::changeTo<> use.
+Preflight checks performed on this source package:
 
-Not performed here:
-- Native devkitA64/libnx cross-compilation (the current environment does not contain devkitPro/devkitA64).
-- Runtime test on a physical Nintendo Switch.
-- Verification of the heuristic coordinate candidate against the user's live TOTK 1.4.3 process.
+- Fixed project-root calculation for recursive make.
+- Fixed include path: include/ and libs/libtesla/include are rooted at TOPDIR.
+- Removed data files from Makefile compilation inputs.
+- Moved TESLA_INIT_IMPL to source/main.cpp only.
+- Removed duplicate main/overlay entrypoint from ui.cpp.
+- Kept dmnt:cht dependency separate from libtesla.
+- CI verifies libtesla, libdmntcht, headers and all source files before make.
+- CI runs `make clean && make -j2`.
+- points.csv is packaged, not compiled.
+
+Runtime note:
+The memory scanner is heuristic and must be tested on the physical Switch. The package does not claim that a candidate is a valid Link coordinate until calibration succeeds.

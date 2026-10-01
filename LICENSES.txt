@@ -1,5 +1,3 @@
-This project contains original code plus third-party dependencies fetched by tools/setup_deps.sh.
-
-libtesla: GPL-2.0, https://github.com/WerWolv/libtesla
-Atmosphere dmnt:cht interface: GPL-2.0, https://github.com/Atmosphere-NX/Atmosphere
-libdmntcht.a dependency: see the source repository fetched by tools/setup_deps.sh.
+TOTK Explorer source: project-specific files.
+libtesla: GPL-2.0, obtained from WerWolv/libtesla during the build workflow.
+dmnt:cht wrapper library/header: license and provenance follow the upstream dependency used by tools/setup_deps.sh (Insektaure/Shiny-Stash-Live-Map / Atmosphere dmnt API).
