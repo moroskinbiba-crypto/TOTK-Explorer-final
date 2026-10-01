@@ -1,0 +1,58 @@
+name: Build TOTK Explorer v3
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Switch OVL
+    runs-on: ubuntu-latest
+
+    container:
+      image: devkitpro/devkita64:latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Download libtesla
+        run: |
+          rm -rf libs/libtesla
+          mkdir -p libs
+          git clone --depth 1 https://github.com/WerWolv/libtesla.git libs/libtesla
+
+      - name: Verify libtesla
+        run: |
+          test -f libs/libtesla/include/tesla.hpp
+          echo "libtesla OK"
+
+      - name: Build
+        run: |
+          make -j2
+
+      - name: Prepare SD package
+        run: |
+          mkdir -p artifact/sd/switch/.overlays
+          cp *.ovl artifact/sd/switch/.overlays/
+
+          if [ -f data/points.csv ]; then
+            mkdir -p artifact/sd/switch/totk_explorer
+            cp data/points.csv artifact/sd/switch/totk_explorer/
+          fi
+
+          echo "===== ARTIFACT ====="
+          find artifact -type f -print
+
+      - name: Upload OVL
+        uses: actions/upload-artifact@v4
+        with:
+          name: TOTK-Explorer-v3
+          path: artifact/
+          if-no-files-found: error
