@@ -12,3 +12,6 @@ Preflight checks performed on this source package:
 
 Runtime note:
 The memory scanner is heuristic and must be tested on the physical Switch. The package does not claim that a candidate is a valid Link coordinate until calibration succeeds.
+
+
+Build-log hardening update: CI compiler warnings are suppressed with -w to prevent libtesla header warning flood. Errors remain fatal. CI timeout is 15 minutes.

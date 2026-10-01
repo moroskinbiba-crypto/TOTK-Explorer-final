@@ -27,7 +27,7 @@ NO_ICON := 1
 # Compiler options
 #---------------------------------------------------------------------------------
 ARCH := -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
-CFLAGS := -g -Wall -Wextra -O2 -ffunction-sections \
+CFLAGS := -g -O2 -ffunction-sections -w \
 $(ARCH) $(DEFINES)
 CFLAGS += $(INCLUDE) -D__SWITCH__
 CXXFLAGS := $(CFLAGS) -fno-exceptions -std=c++20
