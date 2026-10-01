@@ -1,17 +1,23 @@
-Preflight checks performed on this source package:
+TOTK Explorer v3.0.2 build-fix
 
-- Fixed project-root calculation for recursive make.
-- Fixed include path: include/ and libs/libtesla/include are rooted at TOPDIR.
-- Removed data files from Makefile compilation inputs.
-- Moved TESLA_INIT_IMPL to source/main.cpp only.
-- Removed duplicate main/overlay entrypoint from ui.cpp.
-- Kept dmnt:cht dependency separate from libtesla.
-- CI verifies libtesla, libdmntcht, headers and all source files before make.
-- CI runs `make clean && make -j2`.
-- points.csv is packaged, not compiled.
+Target:
+- TOTK 1.4.3
+- Title ID 0100F2C0115B6000
+- Build ID 277178B7DBA1B6D4
 
-Runtime note:
-The memory scanner is heuristic and must be tested on the physical Switch. The package does not claim that a candidate is a valid Link coordinate until calibration succeeds.
+This revision fixes the CI linker error:
+  ld: cannot find -ldmntcht
 
+Fix:
+- The Makefile now links the bundled/generated static library by explicit path:
+  $(TOPDIR)/libs/libdmntcht.a
+- libdmntcht.a is still supplied by tools/setup_deps.sh.
+- points.csv is not compiled as a binary input.
+- libtesla remains header-only and is included from libs/libtesla/include.
 
-Build-log hardening update: CI compiler warnings are suppressed with -w to prevent libtesla header warning flood. Errors remain fatal. CI timeout is 15 minutes.
+CI checks:
+- Verifies libtesla header
+- Verifies libdmntcht.a
+- Verifies all source/header files
+- Runs `make clean && make -j2`
+- Packages the .ovl and points.csv into an SD-card layout
