@@ -1,7 +1,8 @@
 import { TelegramClient } from "teleproto";
 import { StringSession } from "teleproto/sessions";
 import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output, writeFileSync } from "node:process";
+import { stdin as input, stdout as output } from "node:process";
+import { writeFileSync } from "node:fs";
 
 const apiId = Number(process.env.TELEGRAM_API_ID);
 const apiHash = process.env.TELEGRAM_API_HASH?.trim();
