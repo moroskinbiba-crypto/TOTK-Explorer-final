@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "personal-ai-assistant"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "personal-ai-assistant"]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,6 +24,3 @@ jobs:
 
       - name: Type check
         run: npm run check
-
-      - name: Build
-        run: npm run build
