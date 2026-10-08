@@ -1,3 +1,0 @@
-TOTK Explorer source: project-specific files.
-libtesla: GPL-2.0, obtained from WerWolv/libtesla during the build workflow.
-dmnt:cht wrapper library/header: license and provenance follow the upstream dependency used by tools/setup_deps.sh (Insektaure/Shiny-Stash-Live-Map / Atmosphere dmnt API).
