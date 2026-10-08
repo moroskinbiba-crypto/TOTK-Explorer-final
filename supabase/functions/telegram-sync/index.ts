@@ -7,8 +7,8 @@ import {
   upsertChat,
   upsertSummary,
   outgoingStyleSamples,
-} from "../_shared/db.ts";
-import { analyzeStyle, summarize } from "../_shared/ai.ts";
+} from "./_shared/db.ts";
+import { analyzeStyle, summarize } from "./_shared/ai.ts";
 import {
   initialHistoryLimit,
   maxContextMessages,
@@ -17,7 +17,7 @@ import {
   telegramApiHash,
   telegramApiId,
   telegramSession,
-} from "../_shared/env.ts";
+} from "./_shared/env.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8" };
 
