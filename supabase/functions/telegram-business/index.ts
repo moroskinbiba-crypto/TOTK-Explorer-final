@@ -4,7 +4,7 @@ import {
   InlineKeyboard,
   webhookCallback,
 } from "npm:grammy@1.46.0";
-import { db, getAssistantSecret, upsertChat } from "../_shared/db.ts";
+import { db, getAssistantSecret, upsertChat } from "./_shared/db.ts";
 import {
   adminTelegramIds,
   maxContextMessages,
@@ -12,8 +12,8 @@ import {
   supabaseUrl,
   telegramBotToken,
   telegramWebhookSecret,
-} from "../_shared/env.ts";
-import { generateReply, summarize } from "../_shared/ai.ts";
+} from "./_shared/env.ts";
+import { generateReply, summarize } from "./_shared/ai.ts";
 
 const client = db();
 const admins = adminTelegramIds();
