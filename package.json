@@ -11,13 +11,13 @@
     "check": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "grammy": "^1.38.4",
-    "pino": "^9.6.0",
-    "zod": "^3.25.76"
+    "grammy": "^1.46.0",
+    "pino": "^9.7.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^22.15.21",
-    "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "@types/node": "^24.8.1",
+    "tsx": "^4.20.6",
+    "typescript": "^7.0.2"
   }
 }
