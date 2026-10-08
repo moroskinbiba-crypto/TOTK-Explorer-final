@@ -1,23 +1,20 @@
 {
-  "name": "telegram-ai-auto-replier",
-  "version": "1.0.0",
+  "name": "telegram-personal-ai-assistant",
+  "version": "2.0.0",
   "private": true,
-  "description": "Telegram AI auto-reply bot with multiple OpenAI-compatible providers and automatic fallback.",
+  "description": "Telegram personal AI assistant: Business replies, personal chat summaries and style learning.",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "check": "tsc -p tsconfig.json --noEmit",
+    "telegram:login": "tsx scripts/telegram-login.ts",
+    "telegram:check": "tsx scripts/telegram-check.ts"
   },
   "dependencies": {
-    "grammy": "^1.46.0",
-    "pino": "^10.4.0",
-    "zod": "^4.6.5"
+    "teleproto": "1.229.1"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "@types/node": "26.6.4",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
   }
 }
