@@ -15,18 +15,12 @@ await bot.api.setMyCommands([
 
 await bot.api.deleteWebhook({ drop_pending_updates: false });
 
-const controller = new AbortController();
-const stop = () => controller.abort();
+const stop = () => bot.stop();
 process.once("SIGINT", stop);
 process.once("SIGTERM", stop);
 
-try {
-  await bot.start({
-    signal: controller.signal,
-    onStart: (info) => {
-      console.log(`Telegram Business bot @${info.username} started in long-polling mode`);
-    },
-  });
-} finally {
-  bot.stop();
-}
+await bot.start({
+  onStart: (info) => {
+    console.log("Telegram Business bot @" + info.username + " started in long-polling mode");
+  },
+});
