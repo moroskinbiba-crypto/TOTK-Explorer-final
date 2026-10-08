@@ -7,7 +7,8 @@ import { addMessage, getHistory, isRateLimited, resetHistory } from "./store.js"
 const logger = pino({ level: config.logLevel });
 
 function isAllowed(ctx: Context): boolean {
-  if (!config.whitelistEnabled) return true;
+  if (ctx.chat?.type !== "private") return false;
+  if (config.adminIds.size === 0) return true;
   return ctx.from?.id !== undefined && config.adminIds.has(String(ctx.from.id));
 }
 
@@ -18,20 +19,20 @@ function chatKey(ctx: Context): string {
 export function createBot(): Bot {
   const bot = new Bot(config.telegramToken);
 
-  bot.command("start", ctx => ctx.reply("Привет! Я AI-автоответчик. Напиши сообщение, и я постараюсь ответить."));
-  bot.command("help", ctx => ctx.reply(
-    "Команды:\n/start — запустить бота\n/help — помощь\n/status — статус AI\n/reset — очистить контекст"
+  bot.command("start", (ctx) => ctx.reply("Привет! Я AI-автоответчик. Напиши сообщение, и я постараюсь ответить."));
+  bot.command("help", (ctx) => ctx.reply(
+    "/start — запустить\n/help — помощь\n/status — статус AI\n/reset — очистить контекст"
   ));
-  bot.command("status", async ctx => {
-    const configured = config.providers.map(p => `${p.name} (${p.model})`).join(", ");
-    await ctx.reply(configured ? `AI-провайдеры: ${configured}` : "AI-провайдеры не настроены.");
+  bot.command("status", (ctx) => {
+    const configured = config.providers.map((p) => `${p.name} (${p.model})`).join(", ");
+    return ctx.reply(configured ? `AI-провайдеры: ${configured}` : "AI-провайдеры не настроены.");
   });
-  bot.command("reset", async ctx => {
+  bot.command("reset", (ctx) => {
     resetHistory(chatKey(ctx));
-    await ctx.reply("Контекст этого чата очищен.");
+    return ctx.reply("Контекст этого чата очищен.");
   });
 
-  bot.on("message:text", async ctx => {
+  bot.on("message:text", async (ctx) => {
     if (!isAllowed(ctx)) return;
 
     const text = ctx.message.text.trim();
@@ -43,8 +44,10 @@ export function createBot(): Bot {
       return;
     }
 
-    await ctx.chatAction("typing");
-    if (config.typingDelayMs > 0) await new Promise(resolve => setTimeout(resolve, config.typingDelayMs));
+    await ctx.api.sendChatAction(ctx.chat.id, "typing");
+    if (config.typingDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, config.typingDelayMs));
+    }
 
     const history = getHistory(key, config.maxHistoryMessages);
     try {
@@ -59,7 +62,7 @@ export function createBot(): Bot {
     }
   });
 
-  bot.catch(error => {
+  bot.catch((error) => {
     logger.error({ err: error.error }, "telegram update failed");
   });
 
