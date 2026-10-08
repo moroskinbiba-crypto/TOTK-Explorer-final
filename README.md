@@ -101,3 +101,5 @@ API должен поддерживать POST {BASE_URL}/chat/completions. Ес
 Никогда не коммить Telegram token или AI API keys. Используй .env, секреты VPS или другой secret manager.
 
 При переносе на новый VPS перенеси репозиторий, .env и каталог data, затем запусти Docker Compose или npm start.
+
+CI smoke verification: TypeScript check and production build are run on pull requests and main pushes.
