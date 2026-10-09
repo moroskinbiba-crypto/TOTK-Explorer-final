@@ -64,6 +64,62 @@ async function callSync() {
   return payload;
 }
 
+
+async function storeBusinessConnection(connection: any) {
+  const owner = connection.user;
+  const { error: accountError } = await client
+    .from("telegram_accounts")
+    .upsert(
+      {
+        telegram_user_id: owner.id,
+        username: owner.username || null,
+        display_name:
+          [owner.first_name, owner.last_name].filter(Boolean).join(" ") || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "telegram_user_id" },
+    );
+  if (accountError) throw accountError;
+
+  const { data: currentMode } = await client
+    .from("assistant_settings")
+    .select("value")
+    .eq("key", "assistant_mode")
+    .maybeSingle();
+  const existing = (currentMode?.value || {}) as Record<string, unknown>;
+
+  const { error: saveConnectionError } = await client
+    .from("assistant_settings")
+    .upsert(
+      {
+        key: `business_connection:${connection.id}`,
+        value: {
+          owner_user_id: String(owner.id),
+          user_chat_id: String(connection.user_chat_id),
+          is_enabled: connection.is_enabled,
+          can_reply: connection.rights?.can_reply === true,
+        },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+  if (saveConnectionError) throw saveConnectionError;
+
+  if (!existing.business) {
+    const { error } = await client
+      .from("assistant_settings")
+      .upsert(
+        {
+          key: "assistant_mode",
+          value: { ...existing, business: "suggest" },
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+    if (error) throw error;
+  }
+}
+
 async function ensureBusinessChat(ctx: Context): Promise<any | null> {
   const message = ctx.businessMessage;
   if (!message) return null;
@@ -183,16 +239,31 @@ async function processBusinessMessage(ctx: Context) {
   const text = message.text.trim();
   if (!text) return;
 
-  const { data: connectionRow } = await client
+  let { data: connectionRow, error: connectionLookupError } = await client
     .from("assistant_settings")
     .select("value")
     .eq("key", `business_connection:${message.business_connection_id}`)
     .maybeSingle();
+  if (connectionLookupError) throw connectionLookupError;
 
-  const connectionInfo = (connectionRow?.value || {}) as {
+  let connectionInfo = (connectionRow?.value || {}) as {
     owner_user_id?: string;
     is_enabled?: boolean;
   };
+
+  // Telegram may start delivering selected chat updates without this deployment
+  // having received the earlier business_connection event. Recover it from Bot API.
+  if (!connectionInfo.owner_user_id) {
+    const connection = await ctx.api.getBusinessConnection(message.business_connection_id);
+    await storeBusinessConnection(connection);
+    connectionInfo = {
+      owner_user_id: String(connection.user.id),
+      is_enabled: connection.is_enabled,
+    };
+  }
+
+  if (connectionInfo.is_enabled === false) return;
+
   const isOwnerMessage =
     Boolean(connectionInfo.owner_user_id) &&
     String(message.from?.id || "") === connectionInfo.owner_user_id;
@@ -692,60 +763,7 @@ bot.on("business_connection", async (ctx) => {
   try {
     const connection = ctx.businessConnection;
     if (!connection) return;
-
-    const owner = connection.user;
-    const { error: accountError } = await client
-      .from("telegram_accounts")
-      .upsert(
-        {
-          telegram_user_id: owner.id,
-          username: owner.username || null,
-          display_name:
-            [owner.first_name, owner.last_name].filter(Boolean).join(" ") || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "telegram_user_id" },
-      );
-
-    if (accountError) throw accountError;
-
-    const { data: currentMode } = await client
-      .from("assistant_settings")
-      .select("value")
-      .eq("key", "assistant_mode")
-      .maybeSingle();
-
-    const existing = (currentMode?.value || {}) as Record<string, unknown>;
-    const { error: saveConnectionError } = await client
-      .from("assistant_settings")
-      .upsert(
-        {
-          key: `business_connection:${connection.id}`,
-          value: {
-            owner_user_id: String(owner.id),
-            user_chat_id: String(connection.user_chat_id),
-            is_enabled: connection.is_enabled,
-            can_reply: connection.rights?.can_reply === true,
-          },
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "key" },
-      );
-
-    if (saveConnectionError) throw saveConnectionError;
-
-    if (!existing.business) {
-      await client
-        .from("assistant_settings")
-        .upsert(
-          {
-            key: "assistant_mode",
-            value: { ...existing, business: "suggest" },
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "key" },
-        );
-    }
+    await storeBusinessConnection(connection);
   } catch (error) {
     console.error("business_connection handler failed", error);
   }
