@@ -43,20 +43,6 @@ export function telegramWebhookSecret(): string | undefined {
   return optional("TELEGRAM_WEBHOOK_SECRET");
 }
 
-export function telegramApiId(): number {
-  const value = intEnv("TELEGRAM_API_ID", 0);
-  if (value <= 0) throw new Error("TELEGRAM_API_ID is not configured");
-  return value;
-}
-
-export function telegramApiHash(): string {
-  return required("TELEGRAM_API_HASH");
-}
-
-export function telegramSession(): string {
-  return required("TELEGRAM_SESSION");
-}
-
 export function adminTelegramIds(): Set<string> {
   return new Set(
     (Deno.env.get("TELEGRAM_ADMIN_IDS") || "")
@@ -72,14 +58,6 @@ export function maxReplyLength(): number {
 
 export function maxContextMessages(): number {
   return Math.max(10, Math.min(100, intEnv("MAX_CONTEXT_MESSAGES", 40)));
-}
-
-export function syncBatchSize(): number {
-  return Math.max(50, Math.min(500, intEnv("SYNC_BATCH_SIZE", 200)));
-}
-
-export function initialHistoryLimit(): number {
-  return Math.max(100, Math.min(2000, intEnv("INITIAL_HISTORY_LIMIT", 500)));
 }
 
 export function styleRefreshHours(): number {
@@ -104,6 +82,27 @@ export function providers(): AiProvider[] {
         model,
       });
     }
+  }
+
+  // Use existing keys automatically as fallbacks, so no duplicate AI_PROVIDER_* secrets are required.
+  const geminiKey = optional("GEMINI_API_KEY");
+  if (geminiKey && !out.some((provider) => provider.name.toLowerCase() === "gemini")) {
+    out.push({
+      name: "Gemini",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      apiKey: geminiKey,
+      model: optional("GEMINI_MODEL") || "gemini-3.7-flash",
+    });
+  }
+
+  const groqKey = optional("GROQ_API_KEY");
+  if (groqKey && !out.some((provider) => provider.name.toLowerCase() === "groq")) {
+    out.push({
+      name: "Groq",
+      baseUrl: "https://api.groq.com/openai/v1",
+      apiKey: groqKey,
+      model: optional("GROQ_MODEL") || "openai/gpt-oss-20b",
+    });
   }
 
   if (out.length === 0) throw new Error("No AI provider is configured");
