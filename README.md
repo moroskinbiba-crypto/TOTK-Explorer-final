@@ -64,7 +64,7 @@ AI_PROVIDER_3_MODEL=...
 
 Existing keys can also be used without adding duplicate secrets:
 
-- `GEMINI_API_KEY` is detected automatically as the primary built-in fallback. Default model: `gemini-3.7-flash`. Optional override: `GEMINI_MODEL`.
+- `GEMINI_API_KEY` is detected automatically. Default model: `gemini-2.5-flash`, with `gemini-3.7-flash` as a fallback if the primary model is unavailable. Optional overrides: `GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL`.
 - `GROQ_API_KEY` is detected automatically as the next fallback. Default model: `openai/gpt-oss-20b`. Optional override: `GROQ_MODEL`.
 - Explicit `AI_PROVIDER_1_*` to `AI_PROVIDER_3_*` settings are tried first, followed by the built-in Gemini and Groq providers.
 
