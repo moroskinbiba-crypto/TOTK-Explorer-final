@@ -86,13 +86,28 @@ export function providers(): AiProvider[] {
 
   // Use existing keys automatically as fallbacks, so no duplicate AI_PROVIDER_* secrets are required.
   const geminiKey = optional("GEMINI_API_KEY");
-  if (geminiKey && !out.some((provider) => provider.name.toLowerCase() === "gemini")) {
-    out.push({
-      name: "Gemini",
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-      apiKey: geminiKey,
-      model: optional("GEMINI_MODEL") || "gemini-3.7-flash",
-    });
+  const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+  if (geminiKey) {
+    const primaryModel = optional("GEMINI_MODEL") || "gemini-2.5-flash";
+    const fallbackModel = optional("GEMINI_FALLBACK_MODEL") ||
+      (primaryModel === "gemini-2.5-flash" ? "gemini-3.7-flash" : "gemini-2.5-flash");
+    if (!out.some((provider) => provider.baseUrl === geminiBaseUrl && provider.model === primaryModel)) {
+      out.push({
+        name: "Gemini",
+        baseUrl: geminiBaseUrl,
+        apiKey: geminiKey,
+        model: primaryModel,
+      });
+    }
+    if (fallbackModel !== primaryModel &&
+      !out.some((provider) => provider.baseUrl === geminiBaseUrl && provider.model === fallbackModel)) {
+      out.push({
+        name: "Gemini fallback",
+        baseUrl: geminiBaseUrl,
+        apiKey: geminiKey,
+        model: fallbackModel,
+      });
+    }
   }
 
   const groqKey = optional("GROQ_API_KEY");
