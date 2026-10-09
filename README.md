@@ -62,6 +62,14 @@ AI_PROVIDER_3_API_KEY=...
 AI_PROVIDER_3_MODEL=...
 ~~~
 
+Existing keys can also be used without adding duplicate secrets:
+
+- `GEMINI_API_KEY` is detected automatically as the primary built-in fallback. Default model: `gemini-3.7-flash`. Optional override: `GEMINI_MODEL`.
+- `GROQ_API_KEY` is detected automatically as the next fallback. Default model: `openai/gpt-oss-20b`. Optional override: `GROQ_MODEL`.
+- Explicit `AI_PROVIDER_1_*` to `AI_PROVIDER_3_*` settings are tried first, followed by the built-in Gemini and Groq providers.
+
+A configured key must still be valid and permitted to use its selected model. No AI key values should be committed to GitHub.
+
 Где взять значения:
 
 - `TELEGRAM_BOT_TOKEN` — в `@BotFather`.
