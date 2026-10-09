@@ -37,17 +37,17 @@ async function getSyncSecret(): Promise<string> {
   return secret;
 }
 
-async function callSync(action: "discover" | "sync") {
+async function callSync() {
   const secret = await getSyncSecret();
   const response = await fetch(
-    `${supabaseUrl()}/functions/v1/telegram-sync?action=${action}`,
+    `${supabaseUrl()}/functions/v1/telegram-sync`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Assistant-Sync-Secret": secret,
       },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action: "sync" }),
     },
   );
 
@@ -68,11 +68,22 @@ async function ensureBusinessChat(ctx: Context): Promise<any | null> {
   const message = ctx.businessMessage;
   if (!message) return null;
 
-  const { data: existing } = await client
+  const { data: existing, error: existingError } = await client
     .from("telegram_chats")
     .select("*")
     .eq("telegram_chat_id", message.chat.id)
     .maybeSingle();
+
+  if (existingError) throw existingError;
+
+  const { data: modeRow } = await client
+    .from("assistant_settings")
+    .select("value")
+    .eq("key", "assistant_mode")
+    .maybeSingle();
+
+  const defaults = (modeRow?.value || {}) as { business?: string };
+  const mode = existing?.mode || defaults.business || "observe";
 
   return upsertChat(client, {
     telegram_chat_id: message.chat.id,
@@ -85,9 +96,10 @@ async function ensureBusinessChat(ctx: Context): Promise<any | null> {
       null,
     username: message.chat.username || null,
     business_connection_id: message.business_connection_id,
-    mode: existing?.mode || "observe",
-    watched: existing?.watched || false,
-    sync_enabled: existing?.sync_enabled ?? true,
+    mode,
+    watched: existing ? existing.watched : true,
+    sync_enabled: existing ? existing.sync_enabled : true,
+    last_message_at: new Date(message.date * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   });
 }
@@ -171,6 +183,20 @@ async function processBusinessMessage(ctx: Context) {
   const text = message.text.trim();
   if (!text) return;
 
+  const { data: connectionRow } = await client
+    .from("assistant_settings")
+    .select("value")
+    .eq("key", `business_connection:${message.business_connection_id}`)
+    .maybeSingle();
+
+  const connectionInfo = (connectionRow?.value || {}) as {
+    owner_user_id?: string;
+    is_enabled?: boolean;
+  };
+  const isOwnerMessage =
+    Boolean(connectionInfo.owner_user_id) &&
+    String(message.from?.id || "") === connectionInfo.owner_user_id;
+
   const { error: insertError } = await client
     .from("telegram_messages")
     .upsert(
@@ -178,7 +204,8 @@ async function processBusinessMessage(ctx: Context) {
         chat_id: chat.id,
         telegram_message_id: message.message_id,
         sender_telegram_id: message.from?.id || null,
-        outgoing: false,
+        outgoing: isOwnerMessage,
+        source: isOwnerMessage ? "owner_message" : "business_update",
         message_date: new Date(message.date * 1000).toISOString(),
         text,
         reply_to_message_id:
@@ -192,7 +219,18 @@ async function processBusinessMessage(ctx: Context) {
 
   if (insertError) throw insertError;
 
-  await refreshSummary(chat.id);
+  await client
+    .from("telegram_chats")
+    .update({
+      last_message_at: new Date(message.date * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", chat.id);
+
+  // Secretary Mode only delivers Business updates for managed chats. It cannot
+  // fetch arbitrary past dialogs/messages; any author samples come from new
+  // owner-authored Business updates or explicit /style examples.
+  if (isOwnerMessage) return;
 
   const mode = chat.mode || "observe";
   if (mode === "off" || mode === "observe") return;
@@ -251,6 +289,7 @@ async function processBusinessMessage(ctx: Context) {
           telegram_message_id: sent.message_id,
           sender_telegram_id: null,
           outgoing: true,
+          source: "ai_reply",
           message_date: new Date(sent.date * 1000).toISOString(),
           text: draft.text,
         },
@@ -268,16 +307,17 @@ bot.command("start", async (ctx) => {
   if (!isAdmin(ctx)) return;
   await ctx.reply(
     [
-      "Личный AI-ассистент подключён.",
+      "Secretary Bot подключён.",
       "",
-      "/status — статус базы и синхронизации",
-      "/discover — показать твои Telegram-диалоги",
-      "/watch CHAT_ID — начать читать чат",
-      "/unwatch CHAT_ID — перестать читать",
-      "/chats — список отслеживаемых чатов",
-      "/sync — синхронизировать историю сейчас",
-      "/mode observe|suggest|auto|off — режим Business-чатов",
-      "/help — справка",
+      "/status — статус",
+      "/chats — чаты, которые уже прислали Business-сообщения",
+      "/summary CHAT_ID — саммари чата",
+      "/sync — обновить саммари",
+      "/style ТЕКСТ — добавить пример твоего стиля",
+      "/style reset — удалить примеры стиля",
+      "/mode observe|suggest|auto|off — режим ответов",
+      "",
+      "Список разрешённых чатов настраивается в Telegram → Settings → Telegram Business → Connected Bots.",
     ].join("\n"),
   );
 });
@@ -285,13 +325,17 @@ bot.command("start", async (ctx) => {
 bot.command("help", async (ctx) => {
   if (!isAdmin(ctx)) return;
   await ctx.reply(
-    "/status\n" +
-      "/discover\n" +
-      "/watch CHAT_ID\n" +
-      "/unwatch CHAT_ID\n" +
-      "/chats\n" +
-      "/sync\n" +
+    [
+      "/status",
+      "/chats",
+      "/summary CHAT_ID",
+      "/sync",
+      "/style ТЕКСТ",
+      "/style reset",
       "/mode observe|suggest|auto|off",
+      "",
+      "Secretary Bot не входит в твой личный аккаунт и не может выгрузить историю до подключения. Он видит только обновления из выбранных Business-чатов.",
+    ].join("\n"),
   );
 });
 
@@ -300,10 +344,14 @@ bot.command("status", async (ctx) => {
 
   const [{ count: chats }, { count: watched }, { count: messages }] =
     await Promise.all([
-      client.from("telegram_chats").select("id", { count: "exact", head: true }),
       client
         .from("telegram_chats")
         .select("id", { count: "exact", head: true })
+        .not("business_connection_id", "is", null),
+      client
+        .from("telegram_chats")
+        .select("id", { count: "exact", head: true })
+        .not("business_connection_id", "is", null)
         .eq("watched", true)
         .eq("sync_enabled", true),
       client
@@ -311,110 +359,22 @@ bot.command("status", async (ctx) => {
         .select("id", { count: "exact", head: true }),
     ]);
 
+  const { data: modeRow } = await client
+    .from("assistant_settings")
+    .select("value")
+    .eq("key", "assistant_mode")
+    .maybeSingle();
+
+  const mode = ((modeRow?.value || {}) as { business?: string }).business || "observe";
+
   await ctx.reply(
     [
-      `Чатов в базе: ${chats || 0}`,
-      `Отслеживаются: ${watched || 0}`,
+      "Режим Business: " + mode,
+      `Чатов получено через Secretary Bot: ${chats || 0}`,
+      `В саммари включены: ${watched || 0}`,
       `Сохранено сообщений: ${messages || 0}`,
     ].join("\n"),
   );
-});
-
-bot.command("discover", async (ctx) => {
-  if (!isAdmin(ctx)) return;
-
-  try {
-    const result = await callSync("discover");
-    const dialogs = Array.isArray(result.dialogs) ? result.dialogs : [];
-
-    if (!dialogs.length) {
-      await ctx.reply("Telegram не вернул диалоги.");
-      return;
-    }
-
-    const lines = dialogs.slice(0, 50).map(
-      (dialog: any) =>
-        `${dialog.id} — ${dialog.title || "без названия"}` +
-        (dialog.username ? ` (@${dialog.username})` : "") +
-        ` — ${dialog.type}`,
-    );
-
-    await ctx.reply(
-      [
-        "Твои последние диалоги:",
-        "",
-        ...lines,
-        "",
-        "Чтобы начать чтение конкретного чата: /watch CHAT_ID",
-      ].join("\n"),
-    );
-  } catch (error) {
-    await ctx.reply(
-      `Не удалось получить список диалогов: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-});
-
-bot.command("watch", async (ctx) => {
-  if (!isAdmin(ctx)) return;
-
-  const id = ctx.match.trim();
-
-  if (!/^-?\d+$/.test(id)) {
-    await ctx.reply("Нужен числовой Telegram chat ID.");
-    return;
-  }
-
-  const { data: existing } = await client
-    .from("telegram_chats")
-    .select("id")
-    .eq("telegram_chat_id", id)
-    .maybeSingle();
-
-  if (existing) {
-    await client
-      .from("telegram_chats")
-      .update({
-        watched: true,
-        sync_enabled: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-  } else {
-    await upsertChat(client, {
-      telegram_chat_id: id,
-      type: "unknown",
-      watched: true,
-      sync_enabled: true,
-      mode: "observe",
-      updated_at: new Date().toISOString(),
-    });
-  }
-
-  await ctx.reply(
-    `Чат ${id} добавлен. Он будет синхронизироваться, а личные чаты остаются только в режиме наблюдения.`,
-  );
-});
-
-bot.command("unwatch", async (ctx) => {
-  if (!isAdmin(ctx)) return;
-
-  const id = ctx.match.trim();
-
-  if (!/^-?\d+$/.test(id)) {
-    await ctx.reply("Нужен числовой Telegram chat ID.");
-    return;
-  }
-
-  await client
-    .from("telegram_chats")
-    .update({
-      watched: false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("telegram_chat_id", id);
-
-  await ctx.reply(`Чат ${id} убран из наблюдения.`);
 });
 
 bot.command("chats", async (ctx) => {
@@ -422,9 +382,8 @@ bot.command("chats", async (ctx) => {
 
   const { data, error } = await client
     .from("telegram_chats")
-    .select(
-      "telegram_chat_id,title,username,watched,mode,last_message_at,business_connection_id",
-    )
+    .select("telegram_chat_id,title,username,watched,mode,last_message_at")
+    .not("business_connection_id", "is", null)
     .eq("watched", true)
     .order("last_message_at", { ascending: false })
     .limit(50);
@@ -432,7 +391,9 @@ bot.command("chats", async (ctx) => {
   if (error) throw error;
 
   if (!data?.length) {
-    await ctx.reply("Пока нет отслеживаемых чатов.");
+    await ctx.reply(
+      "Пока нет сообщений от Business-чатов. Сначала подключи Secretary Bot в настройках Telegram Business и выбери чаты.",
+    );
     return;
   }
 
@@ -440,25 +401,80 @@ bot.command("chats", async (ctx) => {
     data
       .map(
         (chat: any) =>
-          `${chat.telegram_chat_id} — ${chat.title || (chat.username ? `@${chat.username}` : "без названия")} — ${chat.business_connection_id ? "Business" : "личный"} — ${chat.mode}`,
+          `${chat.telegram_chat_id} — ${chat.title || (chat.username ? `@${chat.username}` : "без названия")} — ${chat.mode} — ${chat.last_message_at || "нет даты"}`,
       )
       .join("\n"),
   );
+});
+
+bot.command("summary", async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = ctx.match.trim();
+
+  if (!/^-?\\d+$/.test(id)) {
+    await ctx.reply("Использование: /summary CHAT_ID");
+    return;
+  }
+
+  const { data: chat } = await client
+    .from("telegram_chats")
+    .select("id,title,telegram_chat_id")
+    .eq("telegram_chat_id", id)
+    .maybeSingle();
+
+  if (!chat) {
+    await ctx.reply("Этот чат пока не присылал обновлений через Secretary Bot.");
+    return;
+  }
+
+  const { data: summary, error } = await client
+    .from("conversation_summaries")
+    .select("summary,open_loops,decisions,action_items,updated_at")
+    .eq("chat_id", chat.id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!summary) {
+    await ctx.reply("Саммари пока не готово. Выполни /sync и попробуй ещё раз.");
+    return;
+  }
+
+  const text = [
+    `Саммари: ${chat.title || chat.telegram_chat_id}`,
+    "",
+    summary.summary || "Пока нет текста саммари.",
+    "",
+    "Открытые вопросы: " + JSON.stringify(summary.open_loops || []),
+    "Договорённости: " + JSON.stringify(summary.decisions || []),
+    "Задачи: " + JSON.stringify(summary.action_items || []),
+    "",
+    "Обновлено: " + (summary.updated_at || "неизвестно"),
+  ].join("\\n");
+
+  await ctx.reply(text.slice(0, 3900));
 });
 
 bot.command("sync", async (ctx) => {
   if (!isAdmin(ctx)) return;
 
   try {
-    const result = await callSync("sync");
-    const synced = Array.isArray(result.synced) ? result.synced : [];
-    const inserted = synced.reduce(
-      (sum: number, item: any) => sum + Number(item.inserted || 0),
-      0,
-    );
+    const result = await callSync();
+    const summaries = Array.isArray(result.summaries) ? result.summaries : [];
+    const refreshed = summaries.filter((item: any) => item.summarizedMessages).length;
+    const errors = summaries.filter((item: any) => item.error).length;
+    const style = result.style || {};
 
     await ctx.reply(
-      `Готово. Загружено новых текстовых сообщений: ${inserted}.`,
+      [
+        `Саммари обновлены: ${refreshed}`,
+        `Ошибок: ${errors}`,
+        style.refreshed
+          ? `Профиль стиля обновлён по ${style.samples} образцам.`
+          : style.reason === "add_at_least_three_style_examples_with_the_style_command"
+            ? `Для профиля стиля пока мало примеров: ${style.samples}. Используй /style ТЕКСТ не менее трёх раз.`
+            : "Профиль стиля: " + (style.reason || "без изменений"),
+      ].join("\n"),
     );
   } catch (error) {
     await ctx.reply(
@@ -467,9 +483,63 @@ bot.command("sync", async (ctx) => {
   }
 });
 
+bot.command("style", async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const value = ctx.match.trim();
+
+  if (!value) {
+    await ctx.reply("Использование: /style ТЕКСТ твоего обычного сообщения или /style reset");
+    return;
+  }
+
+  if (value.toLowerCase() === "reset") {
+    const { error } = await client
+      .from("assistant_settings")
+      .upsert(
+        { key: "style_examples", value: { samples: [] }, updated_at: new Date().toISOString() },
+        { onConflict: "key" },
+      );
+    if (error) throw error;
+    await ctx.reply("Ручные примеры стиля очищены.");
+    return;
+  }
+
+  if (value.length < 12) {
+    await ctx.reply("Добавь более длинный образец — хотя бы одно обычное сообщение целиком.");
+    return;
+  }
+
+  const { data: existing, error: readError } = await client
+    .from("assistant_settings")
+    .select("value")
+    .eq("key", "style_examples")
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const oldSamples = Array.isArray((existing?.value as { samples?: unknown[] } | null)?.samples)
+    ? ((existing?.value as { samples: unknown[] }).samples)
+        .filter((sample): sample is string => typeof sample === "string")
+    : [];
+  const samples = [...oldSamples, value].slice(-100);
+
+  const { error } = await client
+    .from("assistant_settings")
+    .upsert(
+      { key: "style_examples", value: { samples }, updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+  if (error) throw error;
+
+  await client
+    .from("telegram_accounts")
+    .update({ style_updated_at: null, updated_at: new Date().toISOString() })
+    .not("telegram_user_id", "is", null);
+
+  await ctx.reply(`Образец добавлен. Сейчас примеров: ${samples.length}. После /sync стиль будет обновлён.`);
+});
+
 bot.command("mode", async (ctx) => {
   if (!isAdmin(ctx)) return;
-
   const value = ctx.match.trim().toLowerCase();
 
   if (!["observe", "suggest", "auto", "off"].includes(value)) {
@@ -477,16 +547,28 @@ bot.command("mode", async (ctx) => {
     return;
   }
 
+  const { data: currentMode, error: currentError } = await client
+    .from("assistant_settings")
+    .select("value")
+    .eq("key", "assistant_mode")
+    .maybeSingle();
+  if (currentError) throw currentError;
+
+  const current = (currentMode?.value || {}) as Record<string, unknown>;
+  const { error: settingError } = await client
+    .from("assistant_settings")
+    .upsert(
+      { key: "assistant_mode", value: { ...current, business: value }, updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+  if (settingError) throw settingError;
+
   const { error } = await client
     .from("telegram_chats")
-    .update({
-      mode: value,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ mode: value, updated_at: new Date().toISOString() })
     .not("business_connection_id", "is", null);
 
   if (error) throw error;
-
   await ctx.reply(`Режим Business-чатов: ${value}`);
 });
 
@@ -610,17 +692,59 @@ bot.on("business_connection", async (ctx) => {
     const connection = ctx.businessConnection;
     if (!connection) return;
 
-    await upsertChat(client, {
-      telegram_chat_id: connection.user_chat_id,
-      type: "business_connection",
-      title:
-        [connection.user.first_name, connection.user.last_name]
-          .filter(Boolean)
-          .join(" ") || connection.user.username || null,
-      username: connection.user.username || null,
-      business_connection_id: connection.id,
-      updated_at: new Date().toISOString(),
-    });
+    const owner = connection.user;
+    const { error: accountError } = await client
+      .from("telegram_accounts")
+      .upsert(
+        {
+          telegram_user_id: owner.id,
+          username: owner.username || null,
+          display_name:
+            [owner.first_name, owner.last_name].filter(Boolean).join(" ") || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "telegram_user_id" },
+      );
+
+    if (accountError) throw accountError;
+
+    const { data: currentMode } = await client
+      .from("assistant_settings")
+      .select("value")
+      .eq("key", "assistant_mode")
+      .maybeSingle();
+
+    const existing = (currentMode?.value || {}) as Record<string, unknown>;
+    const { error: saveConnectionError } = await client
+      .from("assistant_settings")
+      .upsert(
+        {
+          key: `business_connection:${connection.id}`,
+          value: {
+            owner_user_id: String(owner.id),
+            user_chat_id: String(connection.user_chat_id),
+            is_enabled: connection.is_enabled,
+            can_reply: connection.rights?.can_reply === true,
+          },
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+
+    if (saveConnectionError) throw saveConnectionError;
+
+    if (!existing.business) {
+      await client
+        .from("assistant_settings")
+        .upsert(
+          {
+            key: "assistant_mode",
+            value: { ...existing, business: "suggest" },
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "key" },
+        );
+    }
   } catch (error) {
     console.error("business_connection handler failed", error);
   }
