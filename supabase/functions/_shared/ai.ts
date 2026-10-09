@@ -10,7 +10,7 @@ async function callProvider(
   messages: ChatMessage[],
 ): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45_000);
+  const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
@@ -24,6 +24,7 @@ async function callProvider(
         model: provider.model,
         messages,
         temperature: 0.35,
+        max_tokens: 600,
       }),
     });
 
@@ -81,10 +82,14 @@ export async function generateReply(input: {
     "Сохраняй стиль владельца, но не копируй формулировки механически.",
     "Не придумывай факты, которых нет в контексте.",
     "Если ответа пока нельзя дать уверенно — задай короткий уточняющий вопрос.",
-    `Профиль стиля: ${JSON.stringify(input.styleProfile)}`,
-    `Саммари диалога: ${JSON.stringify(input.summary || {})}`,
-    `Последние сообщения: ${JSON.stringify(input.messages)}`,
-    `Новое сообщение: ${input.incoming}`,
+    `Профиль стиля: ${JSON.stringify(input.styleProfile).slice(0, 3000)}`,
+    `Саммари диалога: ${JSON.stringify(input.summary || {}).slice(0, 3000)}`,
+    `Последние сообщения: ${JSON.stringify(input.messages.slice(-16).map((message) => ({
+      outgoing: message.outgoing,
+      text: message.text?.slice(0, 1200) ?? null,
+      message_date: message.message_date,
+    })))}`,
+    `Новое сообщение: ${input.incoming.slice(0, 4000)}`,
   ].join("\n\n");
 
   const result = await aiText([
