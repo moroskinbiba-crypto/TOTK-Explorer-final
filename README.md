@@ -1,90 +1,47 @@
-# Telegram Personal AI Assistant
+# Telegram Secretary AI
 
-Это отдельный режим проекта для личного Telegram AI-ассистента. VPS не нужен. Основная инфраструктура — Supabase Edge Functions + Supabase Postgres; Vercel для этой версии тоже не требуется.
+Telegram Business Secretary Bot: AI-ответы, саммари и ручные примеры твоего стиля. **Никакой авторизации личного Telegram-аккаунта нет.** Проект использует только Bot API / Secretary Mode и Supabase Edge Functions.
 
-## Что делает система
+## Что делает
 
-1. Telegram user-client (MTProto) читает историю выбранных личных чатов.
-2. История сохраняется в Supabase.
-3. Для каждого выбранного чата строится рабочее саммари: тема разговора, договорённости, открытые вопросы и задачи.
-4. Из твоих исходящих сообщений строится профиль стиля: язык, тон, длина, пунктуация, эмодзи и характерные обороты.
-5. Telegram Business bot получает новые Business-сообщения и может подготовить ответ с учётом истории, саммари и твоего стиля.
-6. В личных чатах по умолчанию включён только режим наблюдения. Автоматическая отправка от имени обычного личного аккаунта не включается.
-7. Для Business-чатов доступны режимы observe, suggest, auto, off; безопасный старт — suggest.
+- Получает новые Business-сообщения только в тех чатах, которые ты разрешил в Telegram Business → Connected Bots.
+- Сохраняет полученные сообщения в Supabase и обновляет саммари, договорённости, открытые вопросы и задачи.
+- Подготавливает AI-ответ с учётом контекста, саммари и примеров твоего стиля.
+- Поддерживает режимы `observe`, `suggest`, `auto`, `off`; безопасный режим по умолчанию — `suggest`.
+- Позволяет добавлять примеры твоего стиля командой `/style ТЕКСТ`.
 
-## Что уже сделано
+## Ограничение Telegram
 
-- Supabase project: lzogiorclfpmibqmzugg.
-- Созданы таблицы telegram_accounts, telegram_chats, telegram_messages, conversation_summaries, ai_suggestions и assistant_settings.
-- Для этих таблиц включён RLS.
-- Деплоены Edge Functions:
-- https://lzogiorclfpmibqmzugg.supabase.co/functions/v1/telegram-business
-- https://lzogiorclfpmibqmzugg.supabase.co/functions/v1/telegram-sync
-- Создана ветка personal-ai-assistant.
-- Telegram session игнорируется Git и хранится локально в файле .telegram-session.
+Secretary Bot **не может войти в личный аккаунт или выгрузить произвольную старую историю переписок**. Он получает только updates, которые Telegram отправляет подключённому Business-боту по выбранным чатам. Поэтому саммари автоматически собирается с момента подключения; прежние сообщения можно использовать как примеры стиля, вручную добавляя их через `/style`. Код входа Telegram, API ID, API hash и пользовательская сессия не нужны.
 
-## Шаг 1. Telegram API ID и API hash
+## Что уже настроено
 
-Открой https://my.telegram.org → API development tools и создай приложение.
-Получи TELEGRAM_API_ID и TELEGRAM_API_HASH.
+- Supabase project: `lzogiorclfpmibqmzugg` (состояние ACTIVE_HEALTHY при последней проверке).
+- Таблицы для Business-чатов, сообщений, саммари, AI-предложений и настроек.
+- RLS включён на таблицах ассистента.
+- Edge Functions:
+- `https://lzogiorclfpmibqmzugg.supabase.co/functions/v1/telegram-business`
+- `https://lzogiorclfpmibqmzugg.supabase.co/functions/v1/telegram-sync`
+- Секрет синхронизации создан внутри `assistant_settings`; он не нужен для ручного ввода.
 
-## Шаг 2. Авторизовать Telegram-аккаунт
+## Настройка — только необходимые действия
 
-Нужен Node.js 22+.
+### 1. Включи Secretary Mode
 
-Клонирование:
+В `@BotFather` создай бота или выбери существующего. В настройках бота включи **Business Mode / Secretary Mode**.
 
-~~~bash
-git clone -b personal-ai-assistant https://github.com/moroskinbiba-crypto/TOTK-Explorer-final.git
-cd TOTK-Explorer-final
-npm install
-~~~
+На своём аккаунте Telegram открой **Settings → Telegram Business → Connected Bots**. Подключи бота, выбери существующие/новые чаты, которые разрешаешь ему обрабатывать, и выдай право `Reply to messages` / `can_reply`.
 
-Linux/macOS:
+Параметры получателей в Telegram Business — это основной список разрешённых чатов. `/watch` не способен дать боту доступ к чату, который ты не разрешил на стороне Telegram.
 
-~~~bash
-export TELEGRAM_API_ID="ТВОЙ_API_ID"
-export TELEGRAM_API_HASH="ТВОЙ_API_HASH"
-npm run telegram:login
-~~~
+### 2. Добавь секреты в Supabase
 
-Windows PowerShell:
-
-~~~powershell
-$env:TELEGRAM_API_ID="ТВОЙ_API_ID"
-$env:TELEGRAM_API_HASH="ТВОЙ_API_HASH"
-npm run telegram:login
-~~~
-
-Скрипт спросит номер телефона, код Telegram и при необходимости пароль 2FA. Вводи их только в своём терминале.
-После авторизации появится .telegram-session. Не отправляй его мне и никому не публикуй.
-
-Проверка:
-
-~~~bash
-npm run telegram:check
-~~~
-
-Эта команда также покажет твой Telegram numeric ID. Он понадобится в TELEGRAM_ADMIN_IDS.
-
-## Шаг 3. Telegram Business bot
-
-В @BotFather создай бота или используй уже существующего и включи для него Business/connected-bot функциональность.
-На аккаунте Telegram открой Settings → Telegram Business → Connected bots, подключи этого бота и выдай право отвечать на нужные Business-чаты.
-
-## Шаг 4. Секреты Supabase
-
-Открой Supabase → Edge Function Secrets. Supabase позволяет задавать production secrets через Dashboard или CLI; функции получают их через Deno.env.get().
-
-Нужно добавить:
+В Supabase Dashboard открой проект → **Edge Functions → Secrets** и добавь:
 
 ~~~text
 TELEGRAM_BOT_TOKEN
 TELEGRAM_ADMIN_IDS
 TELEGRAM_WEBHOOK_SECRET
-TELEGRAM_API_ID
-TELEGRAM_API_HASH
-TELEGRAM_SESSION
 
 AI_PROVIDER_1_ENABLED=true
 AI_PROVIDER_1_NAME=...
@@ -105,19 +62,22 @@ AI_PROVIDER_3_API_KEY=...
 AI_PROVIDER_3_MODEL=...
 ~~~
 
-Для TELEGRAM_SESSION вставь содержимое .telegram-session.
-Для TELEGRAM_ADMIN_IDS вставь numeric ID из npm run telegram:check.
-Для AI достаточно одного OpenAI-compatible провайдера. Остальные используются как fallback.
-Не создавай имена секретов с префиксом SUPABASE_: он зарезервирован Supabase.
+Где взять значения:
 
-## Шаг 5. Telegram webhook
+- `TELEGRAM_BOT_TOKEN` — в `@BotFather`.
+- `TELEGRAM_ADMIN_IDS` — твой числовой Telegram ID; его можно узнать у бота вроде `@userinfobot`.
+- `TELEGRAM_WEBHOOK_SECRET` — сгенерируй длинную случайную строку и сохрани её только в Supabase и локально на время установки webhook.
+- AI provider — любой совместимый с OpenAI Chat Completions API. Достаточно одного, остальные необязательны.
 
-Business function уже развернута:
+Не добавляй `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` или `TELEGRAM_SESSION`: эта архитектура их не использует.
 
-https://lzogiorclfpmibqmzugg.supabase.co/functions/v1/telegram-business
+### 3. Установи webhook
 
-Сгенерируй длинный случайный TELEGRAM_WEBHOOK_SECRET и сохрани тот же секрет в Supabase.
-После этого локально выполни:
+Функция уже развёрнута:
+
+`https://lzogiorclfpmibqmzugg.supabase.co/functions/v1/telegram-business`
+
+В своей командной строке выполни, подставив значения из своих секретов:
 
 ~~~bash
 curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
@@ -126,12 +86,11 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   --data-urlencode 'allowed_updates=["business_connection","business_message","edited_business_message","deleted_business_messages","message","callback_query"]'
 ~~~
 
-Токен и secret подставляй только локально.
+Никогда не публикуй токен или webhook secret в репозитории.
 
-## Шаг 6. Синхронизация каждую минуту
+### 4. Включи регулярное обновление саммари
 
-Supabase поддерживает pg_cron + pg_net для периодического вызова Edge Functions, включая интервал раз в минуту.
-В Supabase SQL Editor выполни:
+В Supabase **SQL Editor** выполни один раз:
 
 ~~~sql
 create extension if not exists pg_cron;
@@ -156,98 +115,56 @@ select cron.schedule(
       'X-Assistant-Sync-Secret',
       (select value->>'secret' from public.assistant_settings where key='sync_token')
     ),
-    body := '{"action":"sync","source":"cron"}'::jsonb
+    body := '{"action":"sync"}'::jsonb
   );
   $cron$
 );
 ~~~
 
-Внутренний токен для синхронизации уже создан в базе; тебе его вводить не нужно.
+### 5. Первый запуск
 
-## Шаг 7. Первый запуск
-
-Напиши своему Business-боту:
+Открой чат со своим ботом и выполни:
 
 ~~~text
+/start
 /status
 ~~~
 
-Потом:
+Убедись, что бот уже подключён в Telegram Business. Напиши тестовое сообщение со второго аккаунта в один из разрешённых чатов — после этого диалог появится в `/chats`.
+
+## Команды
+
+- `/status` — состояние и счётчики.
+- `/chats` — Business-чаты, по которым Telegram уже передал сообщения.
+- `/summary CHAT_ID` — показать саммари конкретного чата.
+- `/sync` — обновить саммари вручную.
+- `/style ТЕКСТ` — добавить пример того, как ты обычно пишешь.
+- `/style reset` — очистить ручные примеры.
+- `/mode observe` — только наблюдать, не отвечать.
+- `/mode suggest` — предлагать ответ тебе на подтверждение.
+- `/mode auto` — отвечать автоматически в разрешённых Business-чатах.
+- `/mode off` — отключить ответы.
+
+Для первого теста оставь `/mode suggest`. Когда приходит новое сообщение, бот предлагает ответ с кнопками «Отправить» и «Отклонить».
+
+## Обучение стилю
+
+Поскольку Secretary Bot не получает старую историю задним числом, добавь несколько обычных сообщений, написанных тобой, например:
 
 ~~~text
-/discover
+/style Да, давай, мне такой вариант подходит
+/style Привет! Я посмотрю сегодня и напишу тебе вечером
+/style Не уверен, что это получится сделать к этому сроку. Давай обсудим другой вариант
 ~~~
 
-Бот покажет найденные диалоги и numeric ID.
-Нужные личные чаты добавляй вручную:
-
-~~~text
-/watch CHAT_ID
-~~~
-
-После этого:
-
-~~~text
-/sync
-~~~
-
-Система загрузит историю выбранных чатов, построит саммари и начнёт собирать профиль твоего стиля.
-Личные чаты не добавляются автоматически.
-
-## Шаг 8. Обучение стилю
-
-Профиль стиля строится по твоим исходящим сообщениям. Для нормального первого профиля желательно иметь хотя бы несколько десятков твоих сообщений среди отслеживаемых чатов.
-
-Учитываются язык, длина, пунктуация, эмодзи, приветствия, окончания, характерные обороты и степень формальности.
-
-## Шаг 9. Business-режим
-
-Безопасный режим:
-
-~~~text
-/mode suggest
-~~~
-
-Новое Business-сообщение → AI анализирует историю и стиль → тебе приходит предложенный ответ → кнопка Отправить публикует его от имени Business-аккаунта.
-
-Только после тестирования можно включить:
-
-~~~text
-/mode auto
-~~~
-
-auto касается только Business-чатов с Business Connection.
-
-## Личные сообщения
-
-Эта версия намеренно не делает автоматическую отправку от имени твоего обычного личного Telegram-аккаунта.
-Она умеет читать историю выбранных чатов, сохранять сообщения, делать саммари, учиться стилю и использовать этот контекст при создании Business-ответов.
-
-## Проверка
-
-CI проверяет TypeScript-часть проекта на GitHub. Обе Edge Functions уже развернуты в Supabase.
-После добавления секретов проверь:
-
-~~~text
-/status
-/discover
-/watch CHAT_ID
-/sync
-~~~
-
-Потом напиши тестовое сообщение в подключённый Business-чат и убедись, что в suggest появляется предложение ответа.
+Используй реальные примеры своего стиля, а не обязательно эти тексты. После трёх или более образцов выполни `/sync`. Новые сообщения, если Telegram доставляет их как owner-authored Business updates, тоже могут использоваться как примеры; AI-ответы помечаются отдельно и не считаются образцами твоего стиля.
 
 ## Что не нужно
 
-- VPS.
-- Docker.
-- Отдельный постоянно работающий сервер.
-- Vercel.
-- Ручное хранение истории на диске.
+- VPS;
+- Vercel;
+- Docker;
+- логин в твой личный Telegram;
+- код SMS/Telegram, API ID, API hash или `.telegram-session`.
 
-Supabase выполняет роль базы данных и serverless backend.
-
-## Безопасность
-
-Никогда не коммить Telegram Bot Token, Telegram API hash, Telegram user session или AI API keys.
-Особенно критичен TELEGRAM_SESSION: это авторизованная сессия Telegram user-client.
+Основная инфраструктура — Telegram Secretary Bot + Supabase Edge Functions/Postgres.
