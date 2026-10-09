@@ -231,7 +231,7 @@ async function generateBusinessDraft(
 
 async function processBusinessMessage(ctx: Context) {
   const message = ctx.businessMessage;
-  if (!message?.text || message.sender_business_bot) return;
+  if (!message?.text || message.sender_business_bot || !message.business_connection_id) return;
 
   const chat = await ensureBusinessChat(ctx);
   if (!chat) return;
