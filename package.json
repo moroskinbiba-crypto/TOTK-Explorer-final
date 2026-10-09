@@ -1,20 +1,9 @@
 {
-  "name": "telegram-personal-ai-assistant",
-  "version": "2.0.0",
+  "name": "telegram-secretary-ai",
+  "version": "3.0.0",
   "private": true,
-  "description": "Telegram personal AI assistant: Business replies, personal chat summaries and style learning.",
-  "type": "module",
+  "description": "Telegram Business Secretary bot backed by Supabase Edge Functions.",
   "scripts": {
-    "check": "tsc -p tsconfig.json --noEmit",
-    "telegram:login": "tsx scripts/telegram-login.ts",
-    "telegram:check": "tsx scripts/telegram-check.ts"
-  },
-  "dependencies": {
-    "teleproto": "1.229.1"
-  },
-  "devDependencies": {
-    "@types/node": "26.6.4",
-    "tsx": "4.23.15",
-    "typescript": "5.9.3"
+    "check": "deno check supabase/functions/telegram-business/index.ts supabase/functions/telegram-sync/index.ts"
   }
 }
