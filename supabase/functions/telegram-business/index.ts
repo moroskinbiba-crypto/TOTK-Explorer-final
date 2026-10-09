@@ -411,7 +411,7 @@ bot.command("summary", async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = ctx.match.trim();
 
-  if (!/^-?\\d+$/.test(id)) {
+  if (!/^-?\d+$/.test(id)) {
     await ctx.reply("Использование: /summary CHAT_ID");
     return;
   }
@@ -450,7 +450,7 @@ bot.command("summary", async (ctx) => {
     "Задачи: " + JSON.stringify(summary.action_items || []),
     "",
     "Обновлено: " + (summary.updated_at || "неизвестно"),
-  ].join("\\n");
+  ].join("\n");
 
   await ctx.reply(text.slice(0, 3900));
 });
@@ -659,6 +659,7 @@ bot.callbackQuery(/^suggest:(approve|reject):(.+)$/, async (ctx) => {
           telegram_message_id: sent.message_id,
           sender_telegram_id: null,
           outgoing: true,
+          source: "ai_reply",
           message_date: new Date(sent.date * 1000).toISOString(),
           text: suggestion.reply_text,
         },
