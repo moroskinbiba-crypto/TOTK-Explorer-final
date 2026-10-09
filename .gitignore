@@ -1,8 +1,5 @@
 node_modules/
 .env
 .env.*
-!.env.example
-.telegram-session
-.telegram-session.*
 .DS_Store
 supabase/.temp/
