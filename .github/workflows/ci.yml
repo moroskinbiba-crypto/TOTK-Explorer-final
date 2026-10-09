@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "personal-ai-assistant"]
+    branches: ["main"]
   pull_request:
-    branches: ["main", "personal-ai-assistant"]
+    branches: ["main"]
 
 jobs:
   check:
@@ -14,13 +14,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
         with:
-          node-version: 22
+          deno-version: v2.x
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Type check
-        run: npm run check
+      - name: Type check Edge Functions
+        run: deno check supabase/functions/telegram-business/index.ts supabase/functions/telegram-sync/index.ts
