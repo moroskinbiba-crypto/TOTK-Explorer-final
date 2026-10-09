@@ -12,6 +12,7 @@ export type ChatRow = {
   sync_enabled: boolean;
   last_synced_message_id: number | string;
   last_message_at: string | null;
+  updated_at?: string | null;
   business_connection_id: string | null;
   mode: "observe" | "suggest" | "auto" | "off";
 };
