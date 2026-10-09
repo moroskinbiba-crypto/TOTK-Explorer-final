@@ -88,25 +88,20 @@ export function providers(): AiProvider[] {
   const geminiKey = optional("GEMINI_API_KEY");
   const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
   if (geminiKey) {
-    const primaryModel = optional("GEMINI_MODEL") || "gemini-2.5-flash";
-    const fallbackModel = optional("GEMINI_FALLBACK_MODEL") ||
-      (primaryModel === "gemini-2.5-flash" ? "gemini-3.7-flash" : "gemini-2.5-flash");
-    if (!out.some((provider) => provider.baseUrl === geminiBaseUrl && provider.model === primaryModel)) {
-      out.push({
-        name: "Gemini",
-        baseUrl: geminiBaseUrl,
-        apiKey: geminiKey,
-        model: primaryModel,
-      });
-    }
-    if (fallbackModel !== primaryModel &&
-      !out.some((provider) => provider.baseUrl === geminiBaseUrl && provider.model === fallbackModel)) {
-      out.push({
-        name: "Gemini fallback",
-        baseUrl: geminiBaseUrl,
-        apiKey: geminiKey,
-        model: fallbackModel,
-      });
+    const models = [
+      { name: "Gemini", model: optional("GEMINI_MODEL") || "gemini-3.8-flash" },
+      { name: "Gemini fallback", model: optional("GEMINI_FALLBACK_MODEL") || "gemini-3.7-flash" },
+      { name: "Gemini fallback 2", model: optional("GEMINI_SECOND_FALLBACK_MODEL") || "gemini-flash-latest" },
+    ];
+    for (const candidate of models) {
+      if (!out.some((provider) => provider.baseUrl === geminiBaseUrl && provider.model === candidate.model)) {
+        out.push({
+          name: candidate.name,
+          baseUrl: geminiBaseUrl,
+          apiKey: geminiKey,
+          model: candidate.model,
+        });
+      }
     }
   }
 
