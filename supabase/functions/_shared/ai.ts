@@ -10,7 +10,7 @@ async function callProvider(
   messages: ChatMessage[],
 ): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const timer = setTimeout(() => controller.abort(), 12_000);
 
   try {
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
