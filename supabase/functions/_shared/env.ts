@@ -90,8 +90,8 @@ export function providers(): AiProvider[] {
   if (geminiKey) {
     const models = [
       { name: "Gemini", model: optional("GEMINI_MODEL") || "gemini-3.8-flash" },
-      { name: "Gemini fallback", model: optional("GEMINI_FALLBACK_MODEL") || "gemini-3.7-flash" },
-      { name: "Gemini fallback 2", model: optional("GEMINI_SECOND_FALLBACK_MODEL") || "gemini-flash-latest" },
+      { name: "Gemini fallback", model: optional("GEMINI_FALLBACK_MODEL") || "gemini-3.6-flash" },
+      { name: "Gemini fallback 2", model: optional("GEMINI_SECOND_FALLBACK_MODEL") || "gemini-3.5-flash" },
     ];
     for (const candidate of models) {
       if (!out.some((provider) => provider.baseUrl === geminiBaseUrl && provider.model === candidate.model)) {
